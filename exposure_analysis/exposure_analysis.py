@@ -1,14 +1,17 @@
-# Load libaries
+# Load libraries
 from plantcv import plantcv as pcv
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import os
-# libraries & dataset
 
 
 def read_ms_image(filename):
+    # check if a .hdr file name was provided and set img_file to the binary location
+    if os.path.splitext(filename)[1] == ".hdr":
+        filename = os.path.splitext(filename)[0]
+
     ms_image = pcv.readimage(filename=filename, mode="envi")
 
     # convert data type from uint8 to float32 for downstream calculations
@@ -37,6 +40,7 @@ def print_histogram(ms_image, out_folder=None):
         out_path = filename
 
     pcv.print_image(hist, out_path)
+    print("Created histogram: " + out_path)
 
 
 def reshape_ms_data(ms_image):
@@ -51,13 +55,15 @@ def reshape_ms_data(ms_image):
     ms_data_melted = ms_data_df.melt()
     ms_data_melted.columns = ["wavelength", "value"]
 
-    return ms_data_melted, ms_image.filename
+    return ms_data_melted
 
 
-def export_data_summary(reshaped_ms_data, ms_img_filename, out_folder=None):
+def export_data_summary(ms_image, out_folder=None):
+    reshaped_ms_data = reshape_ms_data(ms_image)
+
     summary = reshaped_ms_data.groupby("wavelength")["value"].describe(percentiles=[.25, .5, .75, .95], include="all")
 
-    filename = os.path.basename(ms_img_filename) + "_summary.csv"
+    filename = os.path.basename(ms_image.filename) + "_summary.csv"
 
     if out_folder:
         out_path = os.path.join(out_folder, filename)
@@ -65,15 +71,21 @@ def export_data_summary(reshaped_ms_data, ms_img_filename, out_folder=None):
         out_path = filename
 
     summary.to_csv(out_path, index=False)
+    print("Created data summary: " + out_path)
 
 
-def print_violin_plot(reshaped_ms_data, ms_img_filename, out_folder=None):
+def print_violin_plot(ms_image, out_folder=None):
+    reshaped_ms_data = reshape_ms_data(ms_image)
+
     sns.set(style="darkgrid")
+    sns.violinplot(x=reshaped_ms_data["wavelength"],
+                   y=reshaped_ms_data["value"],
+                   scale="count",
+                   inner=None,
+                   gridsize=20,
+                   linewidth=1)
 
-    sns.violinplot(x=reshaped_ms_data["wavelength"], y=reshaped_ms_data["value"],
-                   scale="count", inner=None, gridsize=20, linewidth=1)
-
-    filename = os.path.basename(ms_img_filename) + "_violin_plot.png"
+    filename = os.path.basename(ms_image.filename) + "_violin_plot.png"
 
     if out_folder:
         out_path = os.path.join(out_folder, filename)
@@ -81,15 +93,16 @@ def print_violin_plot(reshaped_ms_data, ms_img_filename, out_folder=None):
         out_path = filename
 
     plt.savefig(out_path)
+    print("Created violin plot: " + out_path)
 
 
 if __name__ == '__main__':
-    ms_image_path = "/home/alex/Nextcloud/Documents/ETC/img_processing/notebooks/2023-04-11_intensity_compairison/RVstr-2218E0_000000_20230407_220000"
+    ms_image_path = input("Please insert path to multispectral binary file here: ")
+    print("analyzing image" + ms_image_path)
 
     img = read_ms_image(ms_image_path)
-    data, name = reshape_ms_data(img)
     print_histogram(img)
-    print_violin_plot(data, name)
-    export_data_summary(data, name)
+    print_violin_plot(img)
+    export_data_summary(img)
 
-
+    print("Done!")
